@@ -1,0 +1,11 @@
+node_modules/
+.toolchain/
+dist/
+src-tauri/target/
+src-tauri/gen/
+test-results/
+playwright-report/
+*.log
+.env.local
+src-tauri/tauri.updater.local.json
+release/

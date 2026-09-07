@@ -1,0 +1,10 @@
+{
+  "bundle": { "createUpdaterArtifacts": true },
+  "plugins": {
+    "updater": {
+      "pubkey": "REPLACE_WITH_YOUR_TAURI_UPDATER_PUBLIC_KEY",
+      "endpoints": ["https://updates.example.com/solutionbat/latest.json"],
+      "windows": { "installMode": "passive" }
+    }
+  }
+}
