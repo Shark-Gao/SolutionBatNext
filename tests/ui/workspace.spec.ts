@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { newWorkspace } from '../../src/domain';
+import { appVersion } from '../test-version';
 
 test('migrates four workspaces, edits configuration and persists it', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
@@ -71,7 +72,7 @@ test('workspace summary opens the schedule page and schedule settings persist', 
 test('registers saved triggers and can delete a task even with invalid unsaved times', async ({ page }, testInfo) => {
   const w = newWorkspace('schedule fixture', 'K:\\Fixture');
   w.schedule.times = ['03:00']; w.tasks.watch = true;
-  await page.addInitScript(seed => {
+  await page.addInitScript(({ seed, version }) => {
     const host = window as any;
     host.isTauri = true;
     host.fixtureRequests = [];
@@ -82,7 +83,7 @@ test('registers saved triggers and can delete a task even with invalid unsaved t
       invoke: async (cmd: string, args: any) => {
         host.fixtureRequests.push({ cmd, args });
         if (cmd === 'load_config') return structuredClone(config);
-        if (cmd === 'app_info') return { version: '0.1.0', dataDir: 'fixture', updaterReady: false };
+        if (cmd === 'app_info') return { version, dataDir: 'fixture', updaterReady: false };
         if (cmd === 'runtime_snapshot' || cmd === 'run_history') return [];
         if (cmd.startsWith('plugin:event|')) return 1;
         if (cmd === 'save_config') { config = structuredClone(args.config); config.revision++; return structuredClone(config); }
@@ -95,7 +96,7 @@ test('registers saved triggers and can delete a task even with invalid unsaved t
       },
     };
     host.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
-  }, { schemaVersion: 1, revision: 0, selectedId: w.id, workspaces: [w], settings: { theme: 'light', autoScroll: true, riderPath: '' } });
+  }, { seed: { schemaVersion: 1, revision: 0, selectedId: w.id, workspaces: [w], settings: { theme: 'light', autoScroll: true, riderPath: '' } }, version: appVersion });
   await page.goto('/');
   await page.locator('.page-nav').getByRole('button', { name: /^计划任务/ }).click();
   await expect(page.locator('.schedule-status-band')).toContainText('计划任务已注册');

@@ -1,6 +1,6 @@
 [package]
 name = "solution-bat-next"
-version = "0.1.0"
+version = "0.1.2"
 description = "Unreal Engine and TypeScript build workspace manager"
 authors = ["sharkgao"]
 edition = "2021"

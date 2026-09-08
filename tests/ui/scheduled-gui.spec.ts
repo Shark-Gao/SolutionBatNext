@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { newWorkspace } from '../../src/domain';
+import { appVersion } from '../test-version';
 
 test('scheduled window selects its workspace, streams logs, and stops the scheduled worker', async ({ page }, testInfo) => {
   const other = newWorkspace('Other workspace', 'K:\\Other');
@@ -17,7 +18,7 @@ test('scheduled window selects its workspace, streams logs, and stops the schedu
       const fixtureRun = ${JSON.stringify(run)};
       let polls = 0;
       api.load = async () => (${JSON.stringify(config)});
-      api.info = async () => ({version:'0.1.0',dataDir:'K:/App/config',updaterReady:false,monitorRunId:fixtureRun.id});
+      api.info = async () => ({version:${JSON.stringify(appVersion)},dataDir:'K:/App/config',updaterReady:false,monitorRunId:fixtureRun.id});
       api.history = async () => [];
       api.snapshot = async () => [];
       api.start = async () => { throw new Error('Must not start a second build'); };
@@ -49,7 +50,7 @@ test('scheduled startup errors stay visible without starting a manual task', asy
   await page.route(/\/src\/api\.ts(?:\?|$)/, async route => {
     const response = await route.fetch();
     await route.fulfill({ response, body: `${await response.text()}
-      api.info = async () => ({version:'0.1.0',dataDir:'K:/App/config',updaterReady:false,startupError:'计划任务环境检查未通过：测试路径不存在'});
+      api.info = async () => ({version:${JSON.stringify(appVersion)},dataDir:'K:/App/config',updaterReady:false,startupError:'计划任务环境检查未通过：测试路径不存在'});
       api.start = async () => { throw new Error('Must not start a manual task'); };
     ` });
   });

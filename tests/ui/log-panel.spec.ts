@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { newWorkspace } from '../../src/domain';
+import { appVersion } from '../test-version';
 
 const panelHeight = async (page: Page) => (await page.locator('.log-panel').boundingBox())!.height;
 async function dragHeight(page: Page, change: number) {
@@ -112,7 +113,7 @@ test('keeps resized logs and selection controls usable at different window width
 
 test('keeps populated logs scrollable and following the latest output while resizing', async ({ page }, testInfo) => {
   const w = newWorkspace('log fixture', 'K:\\fixture');
-  await page.addInitScript(workspace => {
+  await page.addInitScript(({ workspace, version }) => {
     const host = window as any;
     host.isTauri = true;
     const run = { id: 'fixture-run', workspaceId: workspace.id, workspaceName: workspace.name, status: 'success', startedAt: '2026-09-05T08:00:00Z', endedAt: '2026-09-05T08:00:01Z', dryRun: false, scheduled: false, steps: [{ id: 'fixture', label: '编译 TS 并启动 Watch', program: 'fixture', args: [], cwd: '', env: {}, watch: false, kind: 'fixture' }], stepStatuses: { fixture: 'success' }, error: null };
@@ -120,7 +121,7 @@ test('keeps populated logs scrollable and following the latest output while resi
       transformCallback: () => 1,
       invoke: async (cmd: string) => {
         if (cmd === 'load_config') return { schemaVersion: 1, revision: 0, selectedId: workspace.id, workspaces: [workspace], settings: { theme: 'dark', autoScroll: true, riderPath: '' } };
-        if (cmd === 'app_info') return { version: '0.1.0', dataDir: 'fixture', updaterReady: false };
+        if (cmd === 'app_info') return { version, dataDir: 'fixture', updaterReady: false };
         if (cmd.startsWith('plugin:event|')) return 1;
         if (cmd === 'runtime_snapshot' || cmd === 'run_history') return [run];
         if (cmd === 'get_logs') return Array.from({ length: 200 }, (_, index) => ({ runId: run.id, workspaceId: workspace.id, time: run.startedAt, level: 'info', message: `输出 ${index + 1}`, stepId: 'fixture', run: null }));
@@ -129,7 +130,7 @@ test('keeps populated logs scrollable and following the latest output while resi
       },
     };
     host.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener: () => {} };
-  }, w);
+  }, { workspace: w, version: appVersion });
   await page.goto('/');
   const body = page.getByRole('log');
   await expect(body.locator('.log-line')).toHaveCount(200);

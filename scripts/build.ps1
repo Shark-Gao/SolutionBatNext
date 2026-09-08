@@ -1,5 +1,7 @@
 param([switch]$Debug, [string]$UpdaterConfig)
 . (Join-Path $PSScriptRoot 'environment.ps1')
+& (Join-Path $PSScriptRoot 'sync-version.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Version synchronization failed.' }
 if ($Debug) { npm.cmd run tauri -- build --debug --no-bundle }
 elseif ($UpdaterConfig) { npm.cmd run tauri -- build --config $UpdaterConfig }
 else { npm.cmd run desktop:build }

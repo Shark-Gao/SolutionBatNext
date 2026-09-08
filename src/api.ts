@@ -2,10 +2,12 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import legacyXml from '../src-tauri/fixtures/legacy-config.xml?raw';
+import packageMetadata from '../package.json';
 import { newWorkspace } from './domain';
 import type { AppConfig, AppInfo, EnvironmentCheck, InstalledLauncher, MonitoredRun, RunEvent, RunInfo, ScheduleInfo, Step, Workspace } from './types';
 
 export const desktop = isTauri();
+export const appVersion = packageMetadata.version;
 const previewKey = 'solutionbat-next-preview-v1';
 const previewSettingsKey = 'solutionbat-next-ui-v1';
 export const helpUrl = 'https://iwiki.woa.com/p/4018100342?from=iWiki_search';
@@ -53,7 +55,7 @@ export const api = {
     if (desktop) return invoke('save_config', { config });
     const result = { ...config, revision: config.revision + 1 }; localStorage.setItem(previewKey, JSON.stringify(result)); return result;
   },
-  async info(): Promise<AppInfo> { return desktop ? invoke('app_info') : { version: '0.1.0', dataDir: '浏览器本地预览', updaterReady: false }; },
+  async info(): Promise<AppInfo> { return desktop ? invoke('app_info') : { version: appVersion, dataDir: '浏览器本地预览', updaterReady: false }; },
   async saveSettings(settings: AppConfig['settings']) {
     if (desktop) await invoke('save_ui_settings', { settings });
     else localStorage.setItem(previewSettingsKey, JSON.stringify(settings));

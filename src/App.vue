@@ -11,14 +11,14 @@ import PathField from './components/PathField.vue';
 import SchedulePanel from './components/SchedulePanel.vue';
 import HelpView from './components/HelpView.vue';
 import { useLogPanelResize } from './useLogPanelResize';
-import { api, desktop } from './api';
+import { api, appVersion, desktop } from './api';
 import { active, derivePaths, executionLabels, mergeWorkspaces, newWorkspace, statusNames, taskNames, taskOrder, validateWorkspace } from './domain';
 import type { AppConfig, AppInfo, EnvironmentCheck, InstalledLauncher, RunEvent, RunInfo, ScheduleInfo, Step, TaskKey, Workspace } from './types';
 
 const config = ref<AppConfig>();
 const saved = ref('');
 const fatal = ref('');
-const info = ref<AppInfo>({ version: '0.1.0', dataDir: '', updaterReady: false });
+const info = ref<AppInfo>({ version: appVersion, dataDir: '', updaterReady: false });
 const page = ref<'workspace' | 'schedule' | 'history' | 'settings' | 'help'>('workspace');
 const search = ref('');
 const busy = ref(false);

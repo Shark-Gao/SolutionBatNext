@@ -32,11 +32,29 @@ jobs:
           shared-key: solutionbat-windows
           cache-on-failure: true
 
+      - name: Sync release metadata
+        shell: pwsh
+        run: ./scripts/sync-version.ps1
+
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Run unit tests
         run: npm test
+
+      - name: Validate release version
+        if: startsWith(github.ref, 'refs/tags/app-v')
+        shell: pwsh
+        run: |
+          $packageVersion = (Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json).version
+          $cargoVersion = (Select-String -LiteralPath 'src-tauri/Cargo.toml' -Pattern '^version\s*=\s*"([^"]+)"$').Matches.Groups[1].Value
+          if ($packageVersion -ne $cargoVersion) {
+            throw "Version mismatch after synchronization: package.json=$packageVersion, Cargo.toml=$cargoVersion"
+          }
+          $expectedTag = "app-v$packageVersion"
+          if ($env:GITHUB_REF_NAME -ne $expectedTag) {
+            throw "Tag/version mismatch: tag=$env:GITHUB_REF_NAME, expected=$expectedTag"
+          }
 
       - name: Prepare signed updater config
         shell: pwsh

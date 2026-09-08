@@ -112,7 +112,7 @@ release/                   可执行程序、安装包
 
 1. 使用 `npm run tauri -- signer generate` 创建 Tauri 更新签名密钥，私钥必须保存在工程之外。
 2. 在 GitHub 仓库 Secrets 中设置 `TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（如果密钥没有密码可以留空）和 `TAURI_UPDATER_PUBLIC_KEY`。
-3. 修改 `package.json`、`src-tauri/Cargo.toml` 和 `src-tauri/tauri.conf.json` 中的版本号，保持三处一致。
+3. 只修改 `package.json` 中的 `version`；运行 `npm run version:sync` 可同步 Cargo 锁文件和构建元数据，GitHub Actions 会在构建前自动同步。
 4. 提交代码并推送标签，例如 `app-v0.2.0`。
 5. 在 GitHub Releases 中检查草稿发布，确认资产无误后发布。
 

@@ -1,4 +1,6 @@
 . (Join-Path $PSScriptRoot 'environment.ps1')
+npm.cmd run version:sync
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 npm.cmd run build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 npm.cmd test
