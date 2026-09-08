@@ -1,5 +1,5 @@
 use crate::{
-    model::Workspace,
+    model::{AfterSuccess, Workspace},
     plan::{self, Step},
     storage,
 };
@@ -596,84 +596,352 @@ pub fn run(dir: PathBuf, w: Workspace, job: Arc<Job>, _lock: File) -> RunInfo {
     final_info
 }
 
-fn rider_2024_3_10_exe(configured: &str) -> Option<PathBuf> {
-    let mut candidates = Vec::new();
-    if !configured.trim().is_empty() {
-        candidates.push(PathBuf::from(configured));
+fn push_candidate(candidates: &mut Vec<PathBuf>, path: PathBuf) {
+    if !candidates.iter().any(|candidate| candidate == &path) {
+        candidates.push(path);
     }
+}
+
+fn path_candidates(executable: &str) -> Vec<PathBuf> {
+    std::env::var_os("PATH")
+        .map(|path| {
+            std::env::split_paths(&path)
+                .map(|dir| dir.join(executable))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledLauncher {
+    pub version: String,
+    pub executable: String,
+}
+
+fn installation_roots() -> Vec<PathBuf> {
+    ["LOCALAPPDATA", "ProgramFiles", "ProgramFiles(x86)"]
+        .into_iter()
+        .filter_map(|name| std::env::var_os(name).map(PathBuf::from))
+        .collect()
+}
+
+fn product_version(install_dir: &Path) -> Option<String> {
+    let path = [
+        install_dir.join("product-info.json"),
+        install_dir.join("bin").join("product-info.json"),
+    ]
+    .into_iter()
+    .find(|path| path.is_file())?;
+    let bytes = fs::read(path).ok()?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    value
+        .get("version")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+}
+
+fn push_installation(
+    installations: &mut Vec<InstalledLauncher>,
+    install_dir: &Path,
+    executable_name: &str,
+    fallback_version: Option<String>,
+) {
+    let executable = install_dir.join("bin").join(executable_name);
+    if !executable.is_file() {
+        return;
+    }
+    let version = product_version(install_dir)
+        .or(fallback_version)
+        .unwrap_or_else(|| "未知版本".into());
+    if !installations
+        .iter()
+        .any(|item| item.executable == executable.display().to_string())
+    {
+        installations.push(InstalledLauncher {
+            version,
+            executable: executable.display().to_string(),
+        });
+    }
+}
+
+fn folder_version(path: &Path) -> Option<String> {
+    let name = path.file_name()?.to_string_lossy().to_string();
+    let lower = name.to_ascii_lowercase();
+    for prefix in ["jetbrains rider ", "rider "] {
+        if lower.starts_with(prefix) {
+            return Some(name[prefix.len()..].to_string());
+        }
+    }
+    None
+}
+
+fn rider_installations() -> Vec<InstalledLauncher> {
+    let mut installations = Vec::new();
+    for root in installation_roots() {
+        for parent in [root.join("JetBrains"), root.join("Programs")] {
+            let Ok(entries) = fs::read_dir(parent) else { continue };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let name = path.file_name().map(|n| n.to_string_lossy().to_ascii_lowercase());
+                if name.as_deref().is_some_and(|name| {
+                    name == "rider" || name.starts_with("rider ") || name.starts_with("jetbrains rider ")
+                }) {
+                    push_installation(&mut installations, &path, "rider64.exe", folder_version(&path));
+                }
+            }
+        }
+
+        // JetBrains Toolbox keeps versioned Rider folders below this directory.
+        let toolbox = root.join("JetBrains").join("Toolbox").join("apps").join("Rider");
+        let mut pending = vec![(toolbox, 0u8)];
+        while let Some((directory, depth)) = pending.pop() {
+            if depth > 5 { continue; }
+            let Ok(entries) = fs::read_dir(directory) else { continue };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    push_installation(&mut installations, &path, "rider64.exe", folder_version(&path));
+                    pending.push((path, depth + 1));
+                }
+            }
+        }
+    }
+    installations
+}
+
+fn visual_studio_installations() -> Vec<InstalledLauncher> {
+    let mut installations = Vec::new();
+    for variable in ["ProgramFiles", "ProgramFiles(x86)"] {
+        let Some(root) = std::env::var_os(variable).map(PathBuf::from) else { continue };
+        let base = root.join("Microsoft Visual Studio");
+        let Ok(years) = fs::read_dir(base) else { continue };
+        for year in years.flatten() {
+            let year_path = year.path();
+            if !year_path.is_dir() { continue; }
+            let version = year.file_name().to_string_lossy().to_string();
+            let Ok(editions) = fs::read_dir(year_path) else { continue };
+            for edition in editions.flatten() {
+                let executable = edition.path().join("Common7").join("IDE").join("devenv.exe");
+                if executable.is_file() && !installations.iter().any(|item: &InstalledLauncher| item.executable == executable.display().to_string()) {
+                    installations.push(InstalledLauncher { version: version.clone(), executable: executable.display().to_string() });
+                }
+            }
+        }
+    }
+    installations
+}
+
+pub fn installed_launchers(action: &str) -> Vec<InstalledLauncher> {
+    let mut result = match action {
+        "rider" => rider_installations(),
+        "visualStudio" => visual_studio_installations(),
+        _ => Vec::new(),
+    };
+    result.sort_by(|left, right| right.version.cmp(&left.version).then(left.executable.cmp(&right.executable)));
+    result
+}
+
+fn version_matches(actual: &str, requested: &str) -> bool {
+    requested.trim().is_empty()
+        || actual.eq_ignore_ascii_case(requested.trim())
+        || actual.contains(requested.trim())
+        || requested.trim().contains(actual)
+}
+
+fn rider_candidates(version: &str) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    for installation in installed_launchers("rider") {
+        if version_matches(&installation.version, version) {
+            push_candidate(&mut candidates, PathBuf::from(installation.executable));
+        }
+    }
+    let mut roots = Vec::new();
     if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") {
-        candidates.push(
-            PathBuf::from(local_app_data)
-                .join("Programs")
-                .join("Rider 2")
-                .join("bin")
-                .join("rider64.exe"),
-        );
+        roots.push(PathBuf::from(local_app_data));
     }
     if let Some(program_files) = std::env::var_os("ProgramFiles") {
-        let base = PathBuf::from(program_files).join("JetBrains");
-        candidates.push(base.join("Rider 2024.3.10").join("bin").join("rider64.exe"));
-        candidates.push(base.join("JetBrains Rider 2024.3.10").join("bin").join("rider64.exe"));
+        roots.push(PathBuf::from(program_files));
     }
-    candidates.into_iter().find(|path| path.is_file())
+    if let Some(program_files_x86) = std::env::var_os("ProgramFiles(x86)") {
+        roots.push(PathBuf::from(program_files_x86));
+    }
+
+    for root in &roots {
+        let base = root.join("JetBrains");
+        if !version.trim().is_empty() {
+            push_candidate(
+                &mut candidates,
+                base.join(format!("Rider {}", version))
+                    .join("bin")
+                    .join("rider64.exe"),
+            );
+            push_candidate(
+                &mut candidates,
+                base.join(format!("JetBrains Rider {}", version))
+                    .join("bin")
+                    .join("rider64.exe"),
+            );
+        }
+        for name in ["Rider 2", "Rider", "JetBrains Rider"] {
+            push_candidate(
+                &mut candidates,
+                root.join("Programs")
+                    .join(name)
+                    .join("bin")
+                    .join("rider64.exe"),
+            );
+        }
+        for name in ["Rider", "JetBrains Rider"] {
+            push_candidate(
+                &mut candidates,
+                base.join(name).join("bin").join("rider64.exe"),
+            );
+        }
+    }
+    candidates.extend(path_candidates("rider64.exe"));
+    candidates.extend(path_candidates("rider.bat"));
+    candidates
+}
+
+fn visual_studio_candidates(version: &str) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    for installation in installed_launchers("visualStudio") {
+        if version_matches(&installation.version, version) {
+            push_candidate(&mut candidates, PathBuf::from(installation.executable));
+        }
+    }
+    candidates.extend(path_candidates("devenv.exe"));
+    candidates
+}
+
+fn configured_launcher(
+    launch: &AfterSuccess,
+    legacy_rider_path: &str,
+) -> Option<(&'static str, PathBuf)> {
+    let mut action = launch.action.trim();
+    let mut executable = launch.executable.trim();
+    // Keep configurations created by the previous global Rider setting working once.
+    if action == "none" && executable.is_empty() && !legacy_rider_path.trim().is_empty() {
+        action = "rider";
+        executable = legacy_rider_path.trim();
+    }
+    if action == "none" {
+        return None;
+    }
+    let tool = match action {
+        "rider" => "Rider",
+        "visualStudio" => "Visual Studio",
+        _ => return None,
+    };
+    let mut candidates = Vec::new();
+    if !executable.is_empty() {
+        push_candidate(&mut candidates, PathBuf::from(executable));
+    }
+    candidates.extend(if action == "rider" {
+        rider_candidates(&launch.version)
+    } else {
+        visual_studio_candidates(&launch.version)
+    });
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .map(|path| (tool, path))
 }
 
 /// Open the workspace solution after a scheduled run succeeds. This is detached from the
-/// worker so closing SolutionBatNext does not close Rider.
-pub fn open_rider_solution(w: &Workspace, job: &Job, configured_path: &str) {
+/// worker so closing SolutionBatNext does not close the selected development tool.
+pub fn open_after_success(
+    w: &Workspace,
+    job: &Job,
+    launch: &AfterSuccess,
+    legacy_rider_path: &str,
+) {
     let solution = PathBuf::from(&w.root).join("MHAGame").join("MHMobile.sln");
+    if launch.action == "none" && legacy_rider_path.trim().is_empty() {
+        return;
+    }
     if !solution.is_file() {
         job.log(
             "warning",
-            format!("计划任务已成功，但未找到 Rider 解决方案：{}", solution.display()),
+            format!(
+                "计划任务已成功，但未找到开发工具解决方案：{}",
+                solution.display()
+            ),
             None,
             false,
         );
         return;
     }
-    let Some(rider) = rider_2024_3_10_exe(configured_path) else {
+    let Some((tool, launcher)) = configured_launcher(launch, legacy_rider_path) else {
         job.log(
             "warning",
-            "计划任务已成功，但未找到 Rider 2024.3.10，未打开解决方案",
+            "计划任务已成功，但未找到配置的开发工具启动程序，已跳过",
             None,
             false,
         );
         return;
     };
-    match launch_rider(&rider, &solution, Path::new(&w.root)) {
+    match launch_desktop_program(&launcher, &solution, Path::new(&w.root)) {
         Ok(()) => job.log(
             "info",
             format!(
-                "计划任务已成功，已用 Rider 2024.3.10 打开 {}",
-                solution.display()
+                "计划任务已成功，已用 {} 打开 {}（{}）",
+                tool,
+                solution.display(),
+                launcher.display()
             ),
             None,
             false,
         ),
         Err(error) => job.log(
             "warning",
-            format!("计划任务已成功，但启动 Rider 2024.3.10 失败：{error}"),
+            format!("计划任务已成功，但启动 {} 失败：{error}", tool),
             None,
             false,
         ),
     }
 }
 
-fn launch_rider(rider: &Path, solution: &Path, working_dir: &Path) -> Result<(), String> {
+fn launch_desktop_program(
+    launcher: &Path,
+    solution: &Path,
+    working_dir: &Path,
+) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
 
-        // Shell-start the GUI so Windows activates the user's desktop and JetBrains can
-        // forward the solution to an existing Rider instance when possible.
-        let command_line = format!(
-            "start \"\" \"{}\" \"{}\"",
-            rider.display(),
-            solution.display()
-        );
-        Command::new("cmd.exe")
-            .args(["/D", "/S", "/C"])
-            .raw_arg(format!(" {command_line}"))
+        let extension = launcher
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let mut command = if extension == "bat" || extension == "cmd" {
+            // `start` treats a batch file as the command shell and can swallow the
+            // solution argument. Invoke batch launchers directly so their arguments survive.
+            let mut command = Command::new("cmd.exe");
+            command.args(["/D", "/S", "/C"]).raw_arg(format!(
+                " call \"{}\" \"{}\"",
+                launcher.display(),
+                solution.display()
+            ));
+            command
+        } else {
+            // Shell-start the GUI so Windows activates the user's desktop and JetBrains can
+            // forward the solution to an existing IDE instance when possible.
+            let command_line = format!(
+                "start \"\" \"{}\" \"{}\"",
+                launcher.display(),
+                solution.display()
+            );
+            let mut command = Command::new("cmd.exe");
+            command
+                .args(["/D", "/S", "/C"])
+                .raw_arg(format!(" {command_line}"));
+            command
+        };
+        command
             .creation_flags(0x08000000)
             .current_dir(working_dir)
             .stdin(Stdio::null())
@@ -681,11 +949,11 @@ fn launch_rider(rider: &Path, solution: &Path, working_dir: &Path) -> Result<(),
             .stderr(Stdio::null())
             .spawn()
             .map(|_| ())
-            .map_err(|error| format!("无法通过 Windows Shell 启动 Rider：{error}"))
+            .map_err(|error| format!("无法通过 Windows Shell 启动开发工具：{error}"))
     }
     #[cfg(not(windows))]
     {
-        Command::new(rider)
+        Command::new(launcher)
             .arg(solution)
             .current_dir(working_dir)
             .stdin(Stdio::null())
@@ -693,7 +961,7 @@ fn launch_rider(rider: &Path, solution: &Path, working_dir: &Path) -> Result<(),
             .stderr(Stdio::null())
             .spawn()
             .map(|_| ())
-            .map_err(|error| format!("无法启动 Rider：{error}"))
+            .map_err(|error| format!("无法启动开发工具：{error}"))
     }
 }
 

@@ -13,7 +13,7 @@ import HelpView from './components/HelpView.vue';
 import { useLogPanelResize } from './useLogPanelResize';
 import { api, desktop } from './api';
 import { active, derivePaths, executionLabels, mergeWorkspaces, newWorkspace, statusNames, taskNames, taskOrder, validateWorkspace } from './domain';
-import type { AppConfig, AppInfo, EnvironmentCheck, RunEvent, RunInfo, ScheduleInfo, Step, TaskKey, Workspace } from './types';
+import type { AppConfig, AppInfo, EnvironmentCheck, InstalledLauncher, RunEvent, RunInfo, ScheduleInfo, Step, TaskKey, Workspace } from './types';
 
 const config = ref<AppConfig>();
 const saved = ref('');
@@ -39,6 +39,9 @@ const history = ref<RunInfo[]>([]);
 const selectedHistory = ref<RunInfo>();
 const schedules = ref<Record<string, ScheduleInfo>>({});
 const scheduleErrors = ref<Record<string, string>>({});
+const launchers = ref<InstalledLauncher[]>([]);
+const launchersLoading = ref(false);
+const launchersError = ref('');
 const now = ref(Date.now());
 const updateState = ref('');
 const monitorError = ref('');
@@ -90,6 +93,13 @@ async function refreshSchedule(id?: string) {
   try { schedules.value[id] = await api.schedule(id); delete scheduleErrors.value[id]; }
   catch (e) { scheduleErrors.value[id] = errorText(e); }
 }
+async function refreshLaunchers(action?: Workspace['schedule']['afterSuccess']['action']) {
+  if (!desktop || !action || action === 'none') { launchers.value = []; launchersError.value = ''; return; }
+  launchersLoading.value = true; launchersError.value = '';
+  try { launchers.value = await api.launchers(action); }
+  catch (error) { launchers.value = []; launchersError.value = errorText(error); }
+  finally { launchersLoading.value = false; }
+}
 function beginNew() { modalName.value = ''; modalRoot.value = ''; menus.value = false; modal.value = 'new'; }
 function beginRename() { modalName.value = current.value?.name || ''; menus.value = false; modal.value = 'rename'; }
 async function acceptName() {
@@ -130,6 +140,7 @@ async function removeWorkspace() {
 }
 async function browseRoot() { await perform(async () => { const path = await api.browse(true); if (path && current.value) { current.value.root = path; pathsChanged(); } }); }
 async function browsePath(field: keyof Workspace['paths'], directory: boolean) { await perform(async () => { const path = await api.browse(directory); if (path && current.value) current.value.paths[field] = path; }); }
+async function browseLaunch() { await perform(async () => { const path = await api.browse(false); if (path && current.value) current.value.schedule.afterSuccess.executable = path; }); }
 function pathsChanged() { if (current.value?.autoPaths) derivePaths(current.value); }
 function toggleAll(invert = false) { if (current.value) for (const key of taskOrder) current.value.tasks[key] = invert ? !current.value.tasks[key] : true; }
 async function importConfig() { await perform(async () => {
@@ -218,6 +229,7 @@ watch(current, async (value, old) => {
     }
   }
 });
+watch(() => current.value?.schedule.afterSuccess.action, action => { void refreshLaunchers(action); }, { immediate: true });
 watch(themeDark, dark => { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; }, { immediate: true });
 watch([() => logs.value.length, actualHeight], async () => { if (config.value?.settings.autoScroll) { await nextTick(); logBody.value?.scrollTo({ top: logBody.value.scrollHeight }); } });
 watch(modal, async value => { if (value) { await nextTick(); document.querySelector<HTMLInputElement>('.modal input')?.focus(); } });
@@ -374,7 +386,7 @@ onUnmounted(() => { clearInterval(tick); clearInterval(monitorTick); clearTimeou
         </div>
 
         <div v-else-if="page === 'schedule'" class="secondary-page schedule-page">
-          <SchedulePanel v-model="current.schedule.times" :info="schedule" :error="scheduleError" :busy="busy" @register="changeSchedule('register')" @unregister="changeSchedule('unregister')" @refresh="refreshSchedule(current.id)" />
+          <SchedulePanel v-model="current.schedule.times" v-model:after-success="current.schedule.afterSuccess" :info="schedule" :error="scheduleError" :busy="busy" :launchers="launchers" :launchers-loading="launchersLoading" :launchers-error="launchersError" @register="changeSchedule('register')" @unregister="changeSchedule('unregister')" @refresh="refreshSchedule(current.id)" @browse-launch="browseLaunch" />
         </div>
 
         <div v-else-if="page === 'history'" class="secondary-page">
@@ -389,7 +401,6 @@ onUnmounted(() => { clearInterval(tick); clearInterval(monitorTick); clearTimeou
           <section class="form-section"><div class="section-heading"><h2>帮助与关于</h2></div><div class="inline-actions help-actions"><button class="button" @click="openHelp"><CircleHelp :size="16" />在线帮助文档</button><button class="button" @click="page = 'help'"><BookOpen :size="16" />离线使用手册</button><button class="button" @click="modal = 'about'"><Info :size="16" />关于</button></div></section>
           <section class="form-section"><div class="section-heading"><h2>外观</h2></div><div class="setting-row"><strong>界面主题</strong><div class="segmented"><button :class="{ selected: config.settings.theme === 'light' }" @click="setTheme('light')"><Sun :size="15" />浅色</button><button :class="{ selected: config.settings.theme === 'dark' }" @click="setTheme('dark')"><Moon :size="15" />深色</button><button :class="{ selected: config.settings.theme === 'system' }" @click="setTheme('system')"><Laptop :size="15" />跟随系统</button></div></div><div class="setting-row"><strong>日志自动滚动</strong><input type="checkbox" class="switch" v-model="config.settings.autoScroll" aria-label="日志自动滚动" /></div></section>
           <section class="form-section"><div class="section-heading"><h2>配置与数据</h2></div><div class="setting-row"><div><strong>工作区配置</strong><p>{{ config.workspaces.length }} 个工作区</p></div><div class="inline-actions"><button class="button" @click="importConfig"><ArrowDownToLine :size="15" />导入</button><button class="button" @click="perform(async () => { await api.export(config!); })"><ArrowUpFromLine :size="15" />导出</button></div></div><div class="setting-row"><div class="setting-path"><strong>数据目录</strong><p :title="info.dataDir">{{ info.dataDir }}</p></div><IconButton label="打开数据目录" @click="perform(async () => { await api.openDirectory(); })"><FolderOpen :size="17" /></IconButton></div></section>
-          <section class="form-section"><div class="section-heading"><h2>计划任务</h2></div><div class="setting-row"><label class="setting-path" for="rider-path"><strong>成功后打开 Rider</strong><p>计划任务全部成功后打开 MHMobile.sln；留空自动查找 Rider 2024.3.10</p></label><input id="rider-path" class="setting-input" :value="config.settings.riderPath" placeholder="留空自动查找" @change="setPreferences({ riderPath: ($event.target as HTMLInputElement).value })" /></div></section>
           <section class="form-section"><div class="section-heading"><h2>软件更新</h2></div><div class="setting-row"><div><strong>SolutionBat Next <span class="version-label">v{{ info.version }}</span></strong><p>{{ updateState || (info.updaterReady ? '更新服务已配置' : '更新服务尚未配置') }}</p></div><button class="button" :disabled="busy || allRunning.length > 0" @click="update"><RefreshCw :size="15" />检查更新</button></div></section>
           <div class="about-app"><img src="/app-icon.png" alt="" /><div><strong>SolutionBat Next</strong><span>MHAutoUpdateCompiler · 新版工作区</span></div><span>sharkgao</span></div>
         </div>

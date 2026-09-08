@@ -39,7 +39,7 @@ test('creates a workspace, rejects duplicate names and switches views', async ({
   await expect(page.getByText('还没有运行记录')).toBeVisible();
 });
 
-test('workspace summary opens the schedule page and trigger times persist', async ({ page }) => {
+test('workspace summary opens the schedule page and schedule settings persist', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.schedule-summary')).toBeVisible();
   await expect(page.locator('.workspace-layout .schedule-panel')).toHaveCount(0);
@@ -48,11 +48,19 @@ test('workspace summary opens the schedule page and trigger times persist', asyn
   await expect(panel.getByRole('button', { name: '注册计划任务', exact: true })).toBeVisible();
   await expect(panel.getByRole('button', { name: '删除计划任务', exact: true })).toBeVisible();
   await expect(page.getByRole('table', { name: '每日触发时间' })).toBeVisible();
+  await expect(panel.getByLabel('打开项目工程', { exact: true })).toHaveValue('none');
+  await panel.getByLabel('打开项目工程', { exact: true }).selectOption('visualStudio');
+  await expect(panel.getByLabel('开发工具版本', { exact: true })).toHaveValue('2022');
+  await panel.getByLabel('打开项目工程', { exact: true }).selectOption('rider');
+  await expect(panel.getByLabel('开发工具版本', { exact: true })).toHaveValue('2024.3.10');
+  await panel.getByLabel('指定启动程序（可选）', { exact: true }).fill('K:\\JetBrains\\Rider\\bin\\rider64.exe');
   await page.getByLabel('触发时间 1', { exact: true }).fill('06:30');
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await page.reload();
   await page.locator('.page-nav').getByRole('button', { name: /^计划任务/ }).click();
   await expect(page.getByLabel('触发时间 1', { exact: true })).toHaveValue('06:30');
+  await expect(page.getByLabel('打开项目工程', { exact: true })).toHaveValue('rider');
+  await expect(page.getByLabel('指定启动程序（可选）', { exact: true })).toHaveValue('K:\\JetBrains\\Rider\\bin\\rider64.exe');
   await expect(page.getByText('单次编译', { exact: true })).toHaveCount(0);
   await expect(page.getByLabel('执行前关闭 Rider', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: '删除触发时间 1', exact: true }).click();

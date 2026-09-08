@@ -22,7 +22,7 @@ export function newWorkspace(name: string, root = ''): Workspace {
     paths: { name: 'MHMobile', project: '', engine: '', tsProject: '', ueExe: '' },
     build: { configuration: 'Development', target: 'Editor', platform: 'Win64' },
     tasks: { closeEditor: false, sync: false, build: false, typescript: false, definitions: false, watch: false },
-    schedule: { times: [], closeRider: false }, autoPaths: true,
+    schedule: { times: [], closeRider: false, afterSuccess: { action: 'none', version: '2024.3.10', executable: '' } }, autoPaths: true,
   };
   derivePaths(w); return w;
 }
@@ -30,6 +30,7 @@ export function validateWorkspace(w: Workspace): string | null {
   if (!w.name.trim()) return '请输入工作区名称';
   if (w.schedule.times.some(t => !/^([01]\d|2[0-3]):[0-5]\d$/.test(t))) return '请输入有效的触发时间';
   if (new Set(w.schedule.times).size !== w.schedule.times.length) return '触发时间不能重复';
+  if (!['none', 'rider', 'visualStudio'].includes(w.schedule.afterSuccess.action)) return '计划任务成功后的开发工具选项无效';
   return null;
 }
 export function mergeWorkspaces(config: AppConfig, incoming: Workspace[]): number {

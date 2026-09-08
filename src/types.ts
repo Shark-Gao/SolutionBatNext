@@ -6,7 +6,7 @@ export interface Workspace {
   paths: { project: string; name: string; engine: string; tsProject: string; ueExe: string };
   build: { configuration: string; target: string; platform: string };
   tasks: { sync: boolean; build: boolean; typescript: boolean; definitions: boolean; watch: boolean; closeEditor: boolean };
-  schedule: { times: string[]; closeRider: boolean };
+  schedule: { times: string[]; closeRider: boolean; afterSuccess: { action: 'none' | 'rider' | 'visualStudio'; version: string; executable: string } };
   autoPaths: boolean;
 }
 export type TaskKey = keyof Workspace['tasks'];
@@ -25,5 +25,6 @@ export interface RunInfo {
 export interface RunEvent { runId: string; workspaceId: string; time: string; level: string; message: string; stepId: string | null; run: RunInfo | null }
 export interface ScheduleInfo { registered: boolean; name: string; nextRun: string | null; lastResult: number | null; legacyRegistered: boolean; times: string[]; state: string | null; executable: string | null; previousRegistered: boolean }
 export interface EnvironmentCheck { name: string; path: string; ok: boolean; required: boolean }
+export interface InstalledLauncher { version: string; executable: string }
 export interface AppInfo { version: string; dataDir: string; logsDir?: string; updaterReady: boolean; monitorRunId?: string | null; startupError?: string | null }
 export interface MonitoredRun { run: RunInfo; events: RunEvent[]; workerPid: number }

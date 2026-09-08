@@ -51,6 +51,10 @@ try {
   assert.match(await page.locator('.schedule-panel').innerText(), /计划任务已注册/);
   assert.match(await page.locator('.schedule-panel').innerText(), /下次运行/);
   assert.equal(await page.getByLabel('触发时间 1', { exact: true }).getAttribute('type'), 'time');
+  await page.getByLabel('打开项目工程', { exact: true }).selectOption('rider');
+  await page.locator('select[aria-label="开发工具版本"] option[value="2024.3.10"]').waitFor({ timeout: 15000 });
+  assert.equal(await page.getByLabel('开发工具版本', { exact: true }).inputValue(), '2024.3.10');
+  assert.match(await page.locator('.launch-path').innerText(), /rider64\.exe/i);
   await page.screenshot({ path: path.join(dataDir, 'native-schedule.png') });
   assert.equal(await page.locator('.sidebar').getByRole('button', { name: '帮助文档', exact: true }).count(), 0);
   assert.equal(await page.locator('.sidebar').getByRole('button', { name: '关于', exact: true }).count(), 0);

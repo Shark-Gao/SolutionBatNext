@@ -93,6 +93,26 @@ pub struct Tasks {
 pub struct Schedule {
     pub times: Vec<String>,
     pub close_rider: bool,
+    #[serde(default)]
+    pub after_success: AfterSuccess,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AfterSuccess {
+    pub action: String,
+    pub version: String,
+    pub executable: String,
+}
+
+impl Default for AfterSuccess {
+    fn default() -> Self {
+        Self {
+            action: "none".into(),
+            version: "2024.3.10".into(),
+            executable: String::new(),
+        }
+    }
 }
 
 pub fn win_join(root: &str, rest: &str) -> String {
@@ -177,6 +197,8 @@ impl Workspace {
             &self.p4.port,
             &self.p4.user,
             &self.p4.client,
+            &self.schedule.after_success.version,
+            &self.schedule.after_success.executable,
         ] {
             if value.chars().any(char::is_control) {
                 return Err("配置不能包含换行或控制字符".into());
@@ -184,6 +206,10 @@ impl Workspace {
         }
         if self.schedule.times.len() > 24 {
             return Err("每天最多设置 24 个触发时间".into());
+        }
+        if !["none", "rider", "visualStudio"].contains(&self.schedule.after_success.action.as_str())
+        {
+            return Err("计划任务成功后的开发工具选项无效".into());
         }
         let mut unique = HashSet::new();
         for time in &self.schedule.times {

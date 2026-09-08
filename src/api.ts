@@ -3,7 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import legacyXml from '../src-tauri/fixtures/legacy-config.xml?raw';
 import { newWorkspace } from './domain';
-import type { AppConfig, AppInfo, EnvironmentCheck, MonitoredRun, RunEvent, RunInfo, ScheduleInfo, Step, Workspace } from './types';
+import type { AppConfig, AppInfo, EnvironmentCheck, InstalledLauncher, MonitoredRun, RunEvent, RunInfo, ScheduleInfo, Step, Workspace } from './types';
 
 export const desktop = isTauri();
 const previewKey = 'solutionbat-next-preview-v1';
@@ -24,14 +24,30 @@ export function previewSeed(): AppConfig {
   });
   return { schemaVersion: 1, revision: 0, selectedId: workspaces[0].id, workspaces, settings: { theme: 'light', autoScroll: true, riderPath: '' } };
 }
+function normalizeSchedules(config: AppConfig): AppConfig {
+  for (const workspace of config.workspaces) {
+    const schedule = (workspace.schedule || {}) as Partial<Workspace['schedule']>;
+    const afterSuccess = (schedule.afterSuccess || {}) as Partial<Workspace['schedule']['afterSuccess']>;
+    workspace.schedule = {
+      times: schedule.times || [],
+      closeRider: schedule.closeRider ?? false,
+      afterSuccess: {
+        action: afterSuccess.action || 'none',
+        version: afterSuccess.version || '2024.3.10',
+        executable: afterSuccess.executable || '',
+      },
+    };
+  }
+  return config;
+}
 function requireDesktop() { if (!desktop) throw new Error('此操作需要使用 SolutionBat Next 桌面程序。'); }
 export const api = {
   async load(): Promise<AppConfig> {
-    if (desktop) return invoke('load_config');
+    if (desktop) return normalizeSchedules(await invoke<AppConfig>('load_config'));
     const existing = localStorage.getItem(previewKey); const config = existing ? JSON.parse(existing) : previewSeed();
     const settings = localStorage.getItem(previewSettingsKey); if (settings) config.settings = { theme: 'light', autoScroll: true, riderPath: '', ...JSON.parse(settings) };
     else config.settings = { theme: 'light', autoScroll: true, riderPath: '', ...config.settings };
-    return config;
+    return normalizeSchedules(config);
   },
   async save(config: AppConfig): Promise<AppConfig> {
     if (desktop) return invoke('save_config', { config });
@@ -59,6 +75,10 @@ export const api = {
     if (path) await invoke('export_config', { path, config });
   },
   async environment(workspace: Workspace): Promise<EnvironmentCheck[]> { requireDesktop(); return invoke('check_environment', { workspace }); },
+  async launchers(action: Workspace['schedule']['afterSuccess']['action']): Promise<InstalledLauncher[]> {
+    if (!desktop || action === 'none') return [];
+    return invoke('installed_launchers', { action });
+  },
   async plan(workspace: Workspace, scheduled = false): Promise<Step[]> { requireDesktop(); return invoke('preview_plan', { workspace, scheduled }); },
   async start(workspaceId: string, dryRun: boolean): Promise<RunInfo> { requireDesktop(); return invoke('start_run', { workspaceId, dryRun }); },
   async stop(workspaceId: string) { requireDesktop(); await invoke('stop_run', { workspaceId }); },

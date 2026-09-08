@@ -79,6 +79,11 @@ async fn check_environment(workspace: Workspace) -> Vec<plan::Check> {
 }
 
 #[tauri::command]
+async fn installed_launchers(action: String) -> Vec<runner::InstalledLauncher> {
+    runner::installed_launchers(&action)
+}
+
+#[tauri::command]
 fn preview_plan(workspace: Workspace, scheduled: bool) -> Result<Vec<plan::Step>, String> {
     plan::plan(&workspace, scheduled)
 }
@@ -259,6 +264,7 @@ pub fn run_app_with_monitor(monitor: monitor::Monitor) {
             import_config,
             export_config,
             check_environment,
+            installed_launchers,
             preview_plan,
             start_run,
             stop_run,
