@@ -72,6 +72,6 @@ jobs:
           tagName: app-v__VERSION__
           releaseName: SolutionBat Next v__VERSION__
           releaseBody: See the assets below for the Windows installer and signed updater artifacts.
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: --config src-tauri/tauri.updater.ci.json
