@@ -8,4 +8,8 @@ playwright-report/
 *.log
 .env.local
 src-tauri/tauri.updater.local.json
-release/
+release/*
+!release/config/
+release/config/*
+!release/config/config.json
+!release/config/ui-settings.json

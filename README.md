@@ -104,20 +104,25 @@ release/                   可执行程序、安装包
 
 任务命令定义在独立的 `Step` 列表中，添加任务时扩展 `plan.rs` 和界面任务模型即可。高频运行日志只保留最近 1200 条用于界面显示，每次运行的磁盘日志上限为 32 MiB；运行历史界面显示最近 100 条，旧文件仍留在数据目录。
 
-## 自动更新
+## GitHub 发布与自动更新
 
-当前未配置更新服务，界面会显示实际未配置状态。要发布带自动更新的版本：
+工程可以生成供其他人下载的 Windows 当前用户安装包。仓库中的 `.github/workflows/publish.yml` 采用 GitHub Releases 发布：推送 `app-v*` 标签或手动运行工作流后，会执行测试、构建 NSIS 安装包，并生成 Tauri updater 所需的签名文件和 `latest.json`。
 
-1. 使用 `npm run tauri -- signer generate` 创建更新签名密钥，将私钥保存在工程之外。
-2. 依据 `src-tauri/tauri.updater.example.json` 创建 `src-tauri/tauri.updater.local.json`，填写真实 HTTPS 更新地址和公钥。
-3. 为当前打包进程提供 `TAURI_SIGNING_PRIVATE_KEY` 和可选的 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。
-4. 运行 `scripts/build.ps1 -UpdaterConfig src-tauri/tauri.updater.local.json`。
-5. 将生成的更新包、签名及版本 JSON 发布到配置的地址。版本 JSON 按 Tauri 官方 updater 格式包含 `version`、`platforms.windows-x86_64.url` 和 `signature`。
+启用自动更新前：
 
-参考：https://v2.tauri.app/plugin/updater/
+1. 使用 `npm run tauri -- signer generate` 创建 Tauri 更新签名密钥，私钥必须保存在工程之外。
+2. 在 GitHub 仓库 Secrets 中设置 `TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（如果密钥没有密码可以留空）和 `TAURI_UPDATER_PUBLIC_KEY`。
+3. 修改 `package.json`、`src-tauri/Cargo.toml` 和 `src-tauri/tauri.conf.json` 中的版本号，保持三处一致。
+4. 提交代码并推送标签，例如 `app-v0.2.0`。
+5. 在 GitHub Releases 中检查草稿发布，确认资产无误后发布。
 
-本地打包没有代码签名证书；公开分发前可在构建配置中接入团队的 Windows 代码签名。
-配置快照包含本机路径和 P4 连接信息，发布给其他团队前应替换为自己的初始化配置。
+内置更新地址使用：`https://github.com/Shark-Gao/SolutionBatNext/releases/latest/download/latest.json`。GitHub Release 可以作为静态更新源，首次安装下载 `*-setup.exe`，软件内更新则读取 `latest.json` 并校验签名后安装更新包。它可以承担小规模软件的发布和下载分发；如果后续用户较多，或部分用户访问 GitHub 不稳定，再把同一组更新资产同步到对象存储/CDN 即可，应用端只需调整 endpoint。
+
+Tauri updater 强制要求更新签名：公钥可以放进应用和仓库，私钥不能提交到 GitHub；一旦丢失私钥，已有版本将无法继续验证后续更新。GitHub 仓库若为私有，普通用户无法直接访问 Release 更新地址，建议使用公开 Release 或单独的公开更新镜像。
+
+本地仍可使用 `scripts/build.ps1 -UpdaterConfig src-tauri/tauri.updater.local.json` 生成签名版本。当前没有 Windows 代码签名证书，公开分发时还可能出现 SmartScreen 提示；这和 Tauri updater 的更新签名是两套不同的签名。
+
+配置快照包含本机路径和 P4 连接信息，发布给其他团队前应替换为自己的初始化配置；如果仓库公开，不要提交当前机器的真实 `release/config/config.json`。
 
 ## 计划任务启动
 

@@ -1,0 +1,77 @@
+name: Publish SolutionBat Next
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'app-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  publish-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Prepare signed updater config
+        shell: pwsh
+        env:
+          TAURI_UPDATER_PUBLIC_KEY: ${{ secrets.TAURI_UPDATER_PUBLIC_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_UPDATER_PUBLIC_KEY)) {
+            throw 'Missing GitHub Secret: TAURI_UPDATER_PUBLIC_KEY'
+          }
+
+          $configPath = 'src-tauri/tauri.conf.json'
+          $ciConfigPath = 'src-tauri/tauri.updater.ci.json'
+          $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+          $config.bundle | Add-Member -NotePropertyName createUpdaterArtifacts -NotePropertyValue $true -Force
+          if (-not $config.PSObject.Properties['plugins']) {
+            $config | Add-Member -NotePropertyName plugins -NotePropertyValue ([pscustomobject]@{})
+          }
+          $updater = [pscustomobject]@{
+            pubkey = $env:TAURI_UPDATER_PUBLIC_KEY
+            endpoints = @('https://github.com/Shark-Gao/SolutionBatNext/releases/latest/download/latest.json')
+            windows = [pscustomobject]@{ installMode = 'passive' }
+          }
+          $config.plugins | Add-Member -NotePropertyName updater -NotePropertyValue $updater -Force
+          $json = $config | ConvertTo-Json -Depth 20
+          [IO.File]::WriteAllText($ciConfigPath, $json, (New-Object Text.UTF8Encoding($false)))
+
+      - name: Build and publish GitHub Release
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: .
+          tagName: app-v__VERSION__
+          releaseName: SolutionBat Next v__VERSION__
+          releaseBody: See the assets below for the Windows installer and signed updater artifacts.
+          releaseDraft: true
+          prerelease: false
+          args: --config src-tauri/tauri.updater.ci.json

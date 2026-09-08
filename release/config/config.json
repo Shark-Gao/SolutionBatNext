@@ -1,0 +1,184 @@
+{
+  "schemaVersion": 1,
+  "revision": 5,
+  "selectedId": "32dfb0cc-3af5-48cc-96ea-28ea27c1b438",
+  "workspaces": [
+    {
+      "id": "32dfb0cc-3af5-48cc-96ea-28ea27c1b438",
+      "name": "MHA_Client_main",
+      "root": "K:\\MHA_Client_main",
+      "p4": {
+        "port": "ssl:9.134.225.161:1666",
+        "user": "sharkgao",
+        "client": "MHA_Client_main",
+        "force": false
+      },
+      "paths": {
+        "project": "K:\\MHA_Client_main\\MHAGame\\MHMobile.uproject",
+        "name": "MHMobile",
+        "engine": "K:\\MHA_Client_main\\Engine",
+        "tsProject": "K:\\MHA_Client_main\\MHAGame\\TsProj",
+        "ueExe": "K:\\MHA_Client_main\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe"
+      },
+      "build": {
+        "configuration": "Development",
+        "target": "Editor",
+        "platform": "Win64"
+      },
+      "tasks": {
+        "sync": false,
+        "build": false,
+        "typescript": true,
+        "definitions": false,
+        "watch": false,
+        "closeEditor": true
+      },
+      "schedule": {
+        "times": [
+          "03:00"
+        ],
+        "closeRider": false,
+        "afterSuccess": {
+          "action": "rider",
+          "version": "2024.3.10",
+          "executable": ""
+        }
+      },
+      "autoPaths": true
+    },
+    {
+      "id": "080f757b-73b7-4c1f-967f-b8e027dde0d9",
+      "name": "MHA_Client_stable",
+      "root": "K:\\MHA_Client_stable",
+      "p4": {
+        "port": "ssl:9.134.225.161:1666",
+        "user": "sharkgao",
+        "client": "MHA_Client_stable",
+        "force": false
+      },
+      "paths": {
+        "project": "K:\\MHA_Client_stable\\MHAGame\\MHMobile.uproject",
+        "name": "MHMobile",
+        "engine": "K:\\MHA_Client_stable\\Engine",
+        "tsProject": "K:\\MHA_Client_stable\\MHAGame\\TsProj",
+        "ueExe": "K:\\MHA_Client_stable\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe"
+      },
+      "build": {
+        "configuration": "Development",
+        "target": "Editor",
+        "platform": "Win64"
+      },
+      "tasks": {
+        "sync": false,
+        "build": false,
+        "typescript": false,
+        "definitions": false,
+        "watch": true,
+        "closeEditor": true
+      },
+      "schedule": {
+        "times": [
+          "05:00"
+        ],
+        "closeRider": false,
+        "afterSuccess": {
+          "action": "none",
+          "version": "2024.3.10",
+          "executable": ""
+        }
+      },
+      "autoPaths": true
+    },
+    {
+      "id": "022a5665-7570-40cb-adcf-c58b173733b7",
+      "name": "MHAClient_battle",
+      "root": "I:\\sharkgao_MHAClient_battle",
+      "p4": {
+        "port": "ssl:9.134.225.161:1666",
+        "user": "sharkgao",
+        "client": "sharkgao_MHAClient_battle",
+        "force": false
+      },
+      "paths": {
+        "project": "I:\\sharkgao_MHAClient_battle\\MHAGame\\MHMobile.uproject",
+        "name": "MHMobile",
+        "engine": "I:\\sharkgao_MHAClient_battle\\Engine",
+        "tsProject": "I:\\sharkgao_MHAClient_battle\\MHAGame\\TsProj",
+        "ueExe": "I:\\sharkgao_MHAClient_battle\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe"
+      },
+      "build": {
+        "configuration": "Development",
+        "target": "Editor",
+        "platform": "Win64"
+      },
+      "tasks": {
+        "sync": false,
+        "build": false,
+        "typescript": false,
+        "definitions": false,
+        "watch": true,
+        "closeEditor": true
+      },
+      "schedule": {
+        "times": [
+          "06:00"
+        ],
+        "closeRider": false,
+        "afterSuccess": {
+          "action": "none",
+          "version": "2024.3.10",
+          "executable": ""
+        }
+      },
+      "autoPaths": true
+    },
+    {
+      "id": "04bee8ea-5c09-49eb-bb95-1c15f699d343",
+      "name": "MHAClient_PrePublic",
+      "root": "L:\\MHAClient_PrePublicCBT2",
+      "p4": {
+        "port": "ssl:9.134.225.161:1666",
+        "user": "sharkgao",
+        "client": "MHAClient_PrePublic_M24",
+        "force": false
+      },
+      "paths": {
+        "project": "L:\\MHAClient_PrePublicCBT2\\MHAGame\\MHMobile.uproject",
+        "name": "MHMobile",
+        "engine": "L:\\MHAClient_PrePublicCBT2\\Engine",
+        "tsProject": "L:\\MHAClient_PrePublicCBT2\\MHAGame\\TsProj",
+        "ueExe": "L:\\MHAClient_PrePublicCBT2\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe"
+      },
+      "build": {
+        "configuration": "Development",
+        "target": "Editor",
+        "platform": "Win64"
+      },
+      "tasks": {
+        "sync": false,
+        "build": false,
+        "typescript": false,
+        "definitions": false,
+        "watch": false,
+        "closeEditor": true
+      },
+      "schedule": {
+        "times": [
+          "05:00"
+        ],
+        "closeRider": false,
+        "afterSuccess": {
+          "action": "none",
+          "version": "2024.3.10",
+          "executable": ""
+        }
+      },
+      "autoPaths": true
+    }
+  ],
+  "settings": {
+    "theme": "dark",
+    "autoScroll": true,
+    "riderPath": ""
+  }
+}
