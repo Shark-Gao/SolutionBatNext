@@ -40,7 +40,7 @@ function normalizeSchedules(config: AppConfig): AppConfig {
   }
   return config;
 }
-function requireDesktop() { if (!desktop) throw new Error('此操作需要使用 SolutionBat Next 桌面程序。'); }
+function requireDesktop() { if (!desktop) throw new Error('此操作需要使用 MHAutoUpdateCompilerNext 桌面程序。'); }
 export const api = {
   async load(): Promise<AppConfig> {
     if (desktop) return normalizeSchedules(await invoke<AppConfig>('load_config'));

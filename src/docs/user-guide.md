@@ -1,8 +1,8 @@
-# SolutionBat Next 使用手册
+# MHAutoUpdateCompilerNext 使用手册
 
 ## 帮助文档
 
-原版在线文档：[MHAutoUpdateCompiler 帮助](https://iwiki.woa.com/p/4018100342?from=iWiki_search)。通过系统默认浏览器打开，访问权限和登录状态由公司文档系统决定。本手册随程序安装，无需联网。
+原版在线文档：[MHAutoUpdateCompilerNext 帮助](https://iwiki.woa.com/p/4018100342?from=iWiki_search)。通过系统默认浏览器打开，访问权限和登录状态由公司文档系统决定。本手册随程序安装，无需联网。
 
 ## 工作区管理
 
@@ -99,4 +99,4 @@ P4 更新项目内的程序文件时，如果文件被当前用户打开的同�
 
 ## 关于
 
-原工具：MHAutoUpdateCompiler。作者：sharkgao。主要功能：Perforce 同步、UE 项目编译、TypeScript 编译、Windows 计划任务管理。新版使用 Tauri、Vue、TypeScript 和 Rust。
+工具：MHAutoUpdateCompilerNext。作者：sharkgao。主要功能：Perforce 同步、UE 项目编译、TypeScript 编译、Windows 计划任务管理。使用 Tauri、Vue、TypeScript 和 Rust。

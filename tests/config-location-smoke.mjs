@@ -4,14 +4,14 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
-const sourceExe = process.env.SB_TEST_EXE || path.join(root, 'release', 'SolutionBatNext.exe');
+const sourceExe = process.env.SB_TEST_EXE || path.join(root, 'release', 'MHAutoUpdateCompilerNext.exe');
 const dir = path.join(root, 'test-results', `config-location-${Date.now()}`);
 const appDir = path.join(dir, 'Portable App');
 const profile = path.join(dir, 'Profile');
 const legacyDir = path.join(profile, 'SolutionBatNext');
 const targetDir = path.join(appDir, 'config');
 await fs.mkdir(appDir, { recursive: true });
-const exe = path.join(appDir, 'SolutionBatNext.exe');
+const exe = path.join(appDir, 'MHAutoUpdateCompilerNext.exe');
 await fs.copyFile(sourceExe, exe);
 const env = { ...process.env, LOCALAPPDATA: profile, SOLUTIONBAT_DISABLE_TELEMETRY: '1' };
 delete env.SOLUTIONBAT_DATA_DIR;
@@ -65,7 +65,7 @@ assert.equal(JSON.parse(await fs.readFile(path.join(explicit, 'config.json'), 'u
 // Failed migration must not replace the invalid source with newly generated workspace IDs.
 const badAppDir = path.join(dir, 'Bad Migration');
 await fs.mkdir(badAppDir, { recursive: true });
-const badExe = path.join(badAppDir, 'SolutionBatNext.exe');
+const badExe = path.join(badAppDir, 'MHAutoUpdateCompilerNext.exe');
 await fs.copyFile(exe, badExe);
 const bad = spawnSync(badExe, ['--run-task', 'missing-test-workspace', '--check-task'], { cwd: dir, env, windowsHide: true, timeout: 15000, encoding: 'utf8' });
 assert.equal(bad.status, 1);

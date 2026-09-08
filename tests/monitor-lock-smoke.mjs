@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
-const source = process.env.SB_TEST_EXE || path.join(root, 'release', 'SolutionBatNext.exe');
+const source = process.env.SB_TEST_EXE || path.join(root, 'release', 'MHAutoUpdateCompilerNext.exe');
 const data = path.join(root, 'test-results', `monitor-lock-${Date.now()}`);
 await fs.mkdir(data, { recursive: true });
-const exe = path.join(data, 'SolutionBatNext.exe');
+const exe = path.join(data, 'MHAutoUpdateCompilerNext.exe');
 await fs.copyFile(source, exe);
 const env = { ...process.env, SOLUTIONBAT_DATA_DIR: data, SOLUTIONBAT_DISABLE_TELEMETRY: '1' };
 const script = String.raw`

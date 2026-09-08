@@ -1,11 +1,11 @@
-# SolutionBat Next
+# MHAutoUpdateCompilerNext
 
-基于 **Tauri 2 + Vue 3 + TypeScript + Rust** 重写的 MHAutoUpdateCompiler。
+基于 **Tauri 2 + Vue 3 + TypeScript + Rust** 重写的 MHAutoUpdateCompilerNext。
 源工程：`K:\SolutionBat\SolutionBat`。新工程与旧工程独立存放。
 
 ## 运行
 
-双击 `release\SolutionBatNext.exe`，或运行根目录的 `Launch.cmd`。
+双击 `release\MHAutoUpdateCompilerNext.exe`，或运行根目录的 `Launch.cmd`。
 `release` 中同时提供 Windows 当前用户安装包。
 
 运行新版不需要安装 Python、Rust 或 Node.js。实际构建 TypeScript 时仍需要 Node.js，以及被构建项目本身安装的 TypeScript；P4 同步需要本机 `p4.exe`。Windows 需要 Microsoft WebView2 Runtime，安装包会在缺少时引导安装。
@@ -127,9 +127,9 @@ Tauri updater 强制要求更新签名：公钥可以放进应用和仓库，私
 ## 计划任务启动
 
 ```powershell
-release\SolutionBatNext.exe --run-task MHA_Client_main
-release\SolutionBatNext.exe --run-task MHA_Client_main --dry-run
-release\SolutionBatNext.exe --run-task MHA_Client_main --show-gui
+release\MHAutoUpdateCompilerNext.exe --run-task MHA_Client_main
+release\MHAutoUpdateCompilerNext.exe --run-task MHA_Client_main --dry-run
+release\MHAutoUpdateCompilerNext.exe --run-task MHA_Client_main --show-gui
 ```
 
 也可用工作区 UUID 替代名称；`--data-dir <目录>` 指定隔离的数据目录。计划任务使用 UUID 和显式数据目录。

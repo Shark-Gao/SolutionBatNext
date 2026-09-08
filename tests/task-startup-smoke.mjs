@@ -4,13 +4,13 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
-const sourceExe = process.env.SB_TEST_EXE || path.join(root, 'release', 'SolutionBatNext.exe');
+const sourceExe = process.env.SB_TEST_EXE || path.join(root, 'release', 'MHAutoUpdateCompilerNext.exe');
 const dir = path.join(root, 'test-results', `startup-${Date.now()}`);
 const appDir = path.join(dir, 'Portable App');
 const configDir = path.join(dir, 'Config');
 await fs.mkdir(appDir, { recursive: true });
 await fs.mkdir(configDir, { recursive: true });
-const exe = path.join(appDir, 'SolutionBatNext.exe');
+const exe = path.join(appDir, 'MHAutoUpdateCompilerNext.exe');
 await fs.copyFile(sourceExe, exe);
 const env = { ...process.env, SOLUTIONBAT_DISABLE_TELEMETRY: '1' };
 delete env.SOLUTIONBAT_DATA_DIR;

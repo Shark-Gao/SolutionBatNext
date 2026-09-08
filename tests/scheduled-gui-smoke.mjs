@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
-const source = process.env.SB_TEST_EXE || path.join(root, 'release', 'SolutionBatNext.exe');
+const source = process.env.SB_TEST_EXE || path.join(root, 'release', 'MHAutoUpdateCompilerNext.exe');
 const dir = path.join(root, 'test-results', `scheduled-gui-${Date.now()}`);
 await fs.mkdir(dir, { recursive: true });
-const exe = path.join(dir, 'SolutionBatNext.exe');
+const exe = path.join(dir, 'MHAutoUpdateCompilerNext.exe');
 await fs.copyFile(source, exe);
 const results = [];
 for (const cancel of [false, true]) {

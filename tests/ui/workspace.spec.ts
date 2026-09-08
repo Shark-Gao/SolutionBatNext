@@ -146,7 +146,7 @@ test('keeps help and about in settings without duplicate sidebar entries', async
   expect(await page.evaluate(() => (window as any).openedHelpUrl)).toBe('https://iwiki.woa.com/p/4018100342?from=iWiki_search');
   await page.getByRole('button', { name: '关于', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('作者：sharkgao');
-  await expect(page.getByRole('dialog')).toContainText('MHAutoUpdateCompiler');
+  await expect(page.getByRole('dialog')).toContainText('MHAutoUpdateCompilerNext');
   await page.getByRole('button', { name: '关闭对话框' }).click();
   await page.locator('.settings-page').getByRole('button', { name: '离线使用手册', exact: true }).click();
   await expect(page.locator('.help-document')).toContainText('程序所在目录的 logs 文件夹');

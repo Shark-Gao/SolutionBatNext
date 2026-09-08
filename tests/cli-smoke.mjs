@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
-const exe = process.env.SB_TEST_EXE || path.join(root, 'release', 'SolutionBatNext.exe');
+const exe = process.env.SB_TEST_EXE || path.join(root, 'release', 'MHAutoUpdateCompilerNext.exe');
 const dataDir = path.join(root, 'test-results', `cli-${Date.now()}`);
 await fs.mkdir(dataDir, { recursive: true });
 const testEnv = { ...process.env, SOLUTIONBAT_DATA_DIR: dataDir, SOLUTIONBAT_DISABLE_TELEMETRY: '1' };
@@ -34,7 +34,7 @@ for (const file of files) {
 const portableDir = path.join(dataDir, 'Portable App');
 const isolatedProfile = path.join(dataDir, 'user-profile');
 await fs.mkdir(portableDir, { recursive: true });
-const portableExe = path.join(portableDir, 'SolutionBatNext.exe');
+const portableExe = path.join(portableDir, 'MHAutoUpdateCompilerNext.exe');
 await fs.copyFile(exe, portableExe);
 const env = { ...process.env, LOCALAPPDATA: isolatedProfile, SOLUTIONBAT_DISABLE_TELEMETRY: '1' };
 delete env.SOLUTIONBAT_DATA_DIR;

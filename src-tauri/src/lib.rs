@@ -225,7 +225,7 @@ pub fn run_app_with_monitor(monitor: monitor::Monitor) {
     if let Some(window) = context.config_mut().app.windows.first_mut() {
         window.create = false;
         if monitor.run_id.is_some() || monitor.startup_error.is_some() {
-            window.title = "SolutionBat Next - 计划任务".into();
+            window.title = "MHAutoUpdateCompilerNext - 计划任务".into();
         }
         #[cfg(debug_assertions)]
         if let Ok(port) = std::env::var("SOLUTIONBAT_TEST_PORT") {
@@ -288,6 +288,6 @@ pub fn run_app_with_monitor(monitor: monitor::Monitor) {
             }
         })
         .run(context)
-        .expect("failed to run SolutionBat Next");
+        .expect("failed to run MHAutoUpdateCompilerNext");
     telemetry::close();
 }

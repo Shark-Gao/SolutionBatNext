@@ -7,7 +7,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Desktop build failed.' }
 if (-not $Debug) {
     $releasePath = Join-Path $projectRoot 'release'
     New-Item -ItemType Directory -Force -Path $releasePath | Out-Null
-    Copy-Item -LiteralPath (Join-Path $projectRoot 'src-tauri\target\release\solution-bat-next.exe') -Destination (Join-Path $releasePath 'SolutionBatNext.exe') -Force
+    Copy-Item -LiteralPath (Join-Path $projectRoot 'src-tauri\target\release\MHAutoUpdateCompilerNext.exe') -Destination (Join-Path $releasePath 'MHAutoUpdateCompilerNext.exe') -Force
     Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src-tauri\target\release\bundle\nsis') -Filter '*-setup.exe' | Copy-Item -Destination $releasePath -Force
     Get-ChildItem -LiteralPath $releasePath -File | Select-Object Name,Length
 }
