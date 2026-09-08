@@ -95,3 +95,27 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: --config src-tauri/tauri.updater.ci.json
+
+      - name: Use direct release URL for updater
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = (Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json).version
+          $tag = "app-v$version"
+          $manifestPath = Join-Path $env:RUNNER_TEMP 'latest.json'
+          gh release download $tag --pattern latest.json --dir $env:RUNNER_TEMP --clobber
+
+          $release = gh release view $tag --json assets | ConvertFrom-Json
+          $installer = @($release.assets | Where-Object { $_.name -like "*_${version}_x64-setup.exe" }) | Select-Object -First 1
+          if (-not $installer) {
+            throw "Could not find the updater installer for version $version"
+          }
+
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          $directUrl = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/$($installer.name)"
+          foreach ($platform in $manifest.platforms.PSObject.Properties) {
+            $platform.Value.url = $directUrl
+          }
+          $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+          gh release upload $tag $manifestPath --clobber

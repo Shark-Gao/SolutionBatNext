@@ -116,7 +116,7 @@ release/                   可执行程序、安装包
 4. 提交代码并推送标签，例如 `app-v0.2.0`。
 5. 在 GitHub Releases 中检查草稿发布，确认资产无误后发布。
 
-内置更新地址使用：`https://github.com/Shark-Gao/SolutionBatNext/releases/latest/download/latest.json`。GitHub Release 可以作为静态更新源，首次安装下载 `*-setup.exe`，软件内更新则读取 `latest.json` 并校验签名后安装更新包。它可以承担小规模软件的发布和下载分发；如果后续用户较多，或部分用户访问 GitHub 不稳定，再把同一组更新资产同步到对象存储/CDN 即可，应用端只需调整 endpoint。
+内置更新地址使用：`https://github.com/Shark-Gao/SolutionBatNext/releases/latest/download/latest.json`。发布流程会把 `latest.json` 中的安装包地址改成 GitHub Release 直链，避免客户端下载安装包时受 GitHub API 匿名限流影响。GitHub Release 可以作为静态更新源，首次安装下载 `*-setup.exe`，软件内更新则读取 `latest.json` 并校验签名后安装更新包。它可以承担小规模软件的发布和下载分发；如果后续用户较多，或部分用户访问 GitHub 不稳定，再把同一组更新资产同步到对象存储/CDN 即可，应用端只需调整 endpoint。
 
 Tauri updater 强制要求更新签名：公钥可以放进应用和仓库，私钥不能提交到 GitHub；一旦丢失私钥，已有版本将无法继续验证后续更新。GitHub 仓库若为私有，普通用户无法直接访问 Release 更新地址，建议使用公开 Release 或单独的公开更新镜像。
 
