@@ -295,7 +295,6 @@ onUnmounted(() => { clearInterval(tick); clearInterval(monitorTick); clearTimeou
   <div v-else-if="!config || !current" class="boot-state"><LoaderCircle class="spin" :size="28" /><span>正在载入工作区</span></div>
   <div v-else class="app-shell" :class="{ 'logs-expanded': logExpanded, 'logs-collapsed': logCollapsed, 'empty-logs': !displayRun }">
     <aside class="sidebar">
-      <div class="brand"><img src="/app-icon.png" alt="" /><div><strong>MHAutoUpdateCompilerNext</strong><span>BUILD WORKSPACE</span></div></div>
       <div class="workspace-list-heading"><span>工作区</span><span class="count">{{ config.workspaces.length }}</span><IconButton label="新建工作区" @click="beginNew"><Plus :size="17" /></IconButton></div>
       <label class="sidebar-search"><Search :size="14" /><input v-model="search" aria-label="搜索工作区" placeholder="搜索工作区" /></label>
       <nav class="workspace-list" aria-label="工作区列表">
