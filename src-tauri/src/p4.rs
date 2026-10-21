@@ -13,6 +13,36 @@ function Invoke-P4([string[]]$arguments) {
     } finally { $ErrorActionPreference = $oldPreference }
     return [pscustomobject]@{ Code=$code; Text=($lines -join "`n") }
 }
+function Get-LockedFiles([string]$text) {
+    @([regex]::Matches($text, '(?im)^rename:\s+failed\s+to\s+rename\s+(.+?)\s+after\s+\d+\s+attempts:') | ForEach-Object {
+        $_.Groups[1].Value.Trim()
+    } | Select-Object -Unique)
+}
+function Get-WritableConflictFiles([string]$text) {
+    @([regex]::Matches($text, "(?im)^\s*Can't clobber writable file\s+(.+)$") | ForEach-Object {
+        $_.Groups[1].Value.Trim()
+    } | Select-Object -Unique)
+}
+function Get-OccupiedFiles([string]$text) {
+    @(
+        Get-WritableConflictFiles $text
+        Get-LockedFiles $text
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+}
+function Get-NonSkippableSyncErrors([string]$text) {
+    # Opened files stay local; pending revisions are handled by the resolve stage below.
+    # Match known notices exactly so unknown depot errors still stop the run.
+    @($text -split "`n" | Where-Object {
+        $line = $_.Trim()
+        $line -and
+            $line -notmatch '(?i)file\(s\) up-to-date' -and
+            $line -notmatch "(?i)^Can't clobber writable file\s+" -and
+            $line -notmatch '(?i)^rename:\s+failed\s+to\s+rename\s+.+\s+after\s+\d+\s+attempts:' -and
+            $line -notmatch "^//.+#\d+ - (?:is opened for add and can't be replaced|is opened and not being changed)$" -and
+            $line -notmatch '^\.\.\. //.+ - must resolve #\d+(?:,#\d+)? before submitting$' -and
+            $line -notmatch '^(//.+)#\d+ - (?:added as|updating|deleted as|refreshed as|replaced as) '
+    })
+}
 $clients = Invoke-P4 @('clients', '-e', $p.client)
 if ($clients.Code -ne 0 -or [string]::IsNullOrWhiteSpace($clients.Text)) { throw ('P4 Client does not exist: ' + $p.client) }
 [Console]::WriteLine('Checking opened files...')
@@ -22,17 +52,30 @@ if ($p.force) { $syncArgs += '-f' }
 $syncArgs += ('//' + $p.client + '/...#head')
 $sync = Invoke-P4 $syncArgs
 if ($sync.Code -ne 0) {
-    $files = @([regex]::Matches($sync.Text, "(?m)Can't clobber writable file\s+(.+)$") | ForEach-Object { $_.Groups[1].Value.Trim() } | Select-Object -Unique)
+    $files = @(Get-WritableConflictFiles $sync.Text)
     foreach ($file in $files) {
         $root = [IO.Path]::GetFullPath($p.root).TrimEnd('\') + '\'
         $full = [IO.Path]::GetFullPath($file)
         if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw ('Refusing to overwrite a path outside this workspace: ' + $file) }
         [Console]::WriteLine('Force-syncing writable conflict: ' + $file)
         $forced = Invoke-P4 @('sync', '-f', $file)
-        if ($forced.Code -ne 0) { throw ('Force sync failed: ' + $file) }
+        if ($forced.Code -ne 0) {
+            $forcedLockedFiles = @(Get-OccupiedFiles $forced.Text)
+            if ($forcedLockedFiles.Count) {
+                foreach ($lockedFile in $forcedLockedFiles) {
+                    [Console]::WriteLine('P4 skipped occupied file and continued: ' + $lockedFile)
+                }
+            }
+            $forcedErrors = @(Get-NonSkippableSyncErrors $forced.Text)
+            if ($forcedErrors.Count -or [string]::IsNullOrWhiteSpace($forced.Text)) {
+                foreach ($syncError in ($forcedErrors | Select-Object -First 5)) { [Console]::WriteLine('P4 blocking sync error: ' + $syncError) }
+                throw ('Force sync failed: ' + $file)
+            }
+        }
     }
     if ($files.Count) { $sync = Invoke-P4 $syncArgs }
-    $lockedExecutables = @([regex]::Matches($sync.Text, '(?m)rename: failed to rename (.+\.exe) after \d+ attempts:') | ForEach-Object { $_.Groups[1].Value.Trim() } | Select-Object -Unique)
+    $lockedFiles = @(Get-OccupiedFiles $sync.Text)
+    $lockedExecutables = @($lockedFiles | Where-Object { $_ -match '(?i)\.exe$' })
     $released = $false
     foreach ($file in $lockedExecutables) {
         $root = [IO.Path]::GetFullPath($p.root).TrimEnd('\') + '\'
@@ -44,8 +87,15 @@ if ($sync.Code -ne 0) {
             $process = Get-Process -Id $holder.ProcessId -ErrorAction SilentlyContinue
             if ($process -and $process.Path -eq $full) {
                 [Console]::WriteLine('Requesting normal close of a program blocking P4 sync: ' + $full)
-                if (-not $process.CloseMainWindow() -or -not $process.WaitForExit(10000)) { throw ('Program is still in use. Save and close it before retrying: ' + $full) }
-                $released = $true
+                try {
+                    if ($process.CloseMainWindow() -and $process.WaitForExit(10000)) {
+                        $released = $true
+                    } else {
+                        [Console]::WriteLine('P4 will skip the occupied file and continue: ' + $full)
+                    }
+                } catch {
+                    [Console]::WriteLine('P4 will skip the occupied file and continue: ' + $full)
+                }
             }
         }
     }
@@ -53,8 +103,16 @@ if ($sync.Code -ne 0) {
         [Console]::WriteLine('Retrying P4 sync after the blocking program closed.')
         $sync = Invoke-P4 $syncArgs
     }
-    $otherErrors = @($sync.Text -split "`n" | Where-Object { $_.Trim() -and $_ -notmatch '(?i)file\(s\) up-to-date' })
+    $lockedFiles = @(Get-OccupiedFiles $sync.Text)
+    foreach ($file in $lockedFiles) {
+        $root = [IO.Path]::GetFullPath($p.root).TrimEnd('\') + '\'
+        $full = [IO.Path]::GetFullPath($file)
+        if (-not $full.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw ('Refusing to skip a path outside this workspace: ' + $file) }
+        [Console]::WriteLine('P4 skipped occupied file and continued: ' + $file)
+    }
+    $otherErrors = @(Get-NonSkippableSyncErrors $sync.Text)
     if ($sync.Code -ne 0 -and ($otherErrors.Count -or [string]::IsNullOrWhiteSpace($sync.Text))) {
+        foreach ($syncError in ($otherErrors | Select-Object -First 5)) { [Console]::WriteLine('P4 blocking sync error: ' + $syncError) }
         if ($sync.Text -match 'Translation of file content failed') { [Console]::WriteLine('Check the Perforce file type: binary data may be marked as text.') }
         throw ('P4 sync failed, exit code ' + $sync.Code)
     }
@@ -147,5 +205,154 @@ if ($script:syncCount -ne 2) { throw 'Sync was not verified after recovery' }
             String::from_utf8_lossy(&result.stdout),
             String::from_utf8_lossy(&result.stderr)
         );
+    }
+    #[test]
+    fn skips_occupied_files_and_continues_to_resolve_without_real_p4() {
+        let harness = r#"
+$script:calls = New-Object 'System.Collections.Generic.List[string]'
+$script:syncCount = 0
+function p4.exe {
+    if ($args[0] -ne '-p' -or $args[1] -ne 'ssl:fixture:1666' -or $args[4] -ne '-c' -or $args[5] -ne 'fixture') { throw 'Missing explicit P4 scope' }
+    $tail = @($args | Select-Object -Skip 6)
+    $script:calls.Add(($tail -join ' '))
+    $global:LASTEXITCODE = 0
+    if ($tail[0] -eq 'clients') { 'Client fixture' }
+    elseif ($tail[0] -eq 'sync' -and $tail -notcontains '-n' -and $tail -notcontains '-f') {
+        $script:syncCount++
+        $global:LASTEXITCODE = 1
+        'rename: failed to rename K:\Fixture Project\Table\Buff.xlsx after 10 attempts: The process cannot access the file.'
+        "//depot/TriggerAction/Hotfix.ts#1 - is opened for add and can't be replaced"
+        '//depot/metadata.json#145 - is opened and not being changed'
+        '... //depot/metadata.json - must resolve #144,#145 before submitting'
+        '... //depot/utils.ts - must resolve #507 before submitting'
+    } elseif ($tail[0] -eq 'resolve' -and $tail[1] -eq '-n') { 'No file(s) to resolve.' }
+}
+$env:SB_P4_REQUEST = @{ port='ssl:fixture:1666'; user='user'; client='fixture'; root='K:\Fixture Project'; force=$false } | ConvertTo-Json
+& ([scriptblock]::Create($env:SB_SCRIPT))
+if ($script:syncCount -ne 1) { throw 'Unexpected sync retry for an occupied file' }
+if (-not $script:calls.Contains('resolve -n')) { throw 'Resolve stage did not run after occupied file' }
+if (@($script:calls | Where-Object { $_ -eq 'resolve -am' }).Count -ne 0) { throw 'Unexpected auto-resolve attempt' }
+"#;
+        let result = crate::runner::hidden(
+            Command::new("powershell.exe")
+                .args(["-NoProfile", "-NonInteractive", "-Command", harness])
+                .env("SB_SCRIPT", SYNC_SCRIPT),
+        )
+        .output()
+        .unwrap();
+        assert!(
+            result.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(String::from_utf8_lossy(&result.stdout)
+            .contains("P4 skipped occupied file and continued"));
+    }
+    #[test]
+    fn skips_occupied_files_when_force_sync_cannot_replace_them() {
+        let harness = r#"
+$script:calls = New-Object 'System.Collections.Generic.List[string]'
+$script:syncCount = 0
+$script:forceCount = 0
+function p4.exe {
+    if ($args[0] -ne '-p' -or $args[1] -ne 'ssl:fixture:1666' -or $args[4] -ne '-c' -or $args[5] -ne 'fixture') { throw 'Missing explicit P4 scope' }
+    $tail = @($args | Select-Object -Skip 6)
+    $script:calls.Add(($tail -join ' '))
+    $global:LASTEXITCODE = 0
+    if ($tail[0] -eq 'clients') { 'Client fixture' }
+    elseif ($tail[0] -eq 'sync' -and $tail[1] -eq '-f') {
+        $script:forceCount++
+        $global:LASTEXITCODE = 1
+        'rename: failed to rename K:\Fixture Project\Table\Buff.xlsx after 10 attempts: The process cannot access the file.'
+    } elseif ($tail[0] -eq 'sync' -and $tail -notcontains '-n') {
+        $script:syncCount++
+        $global:LASTEXITCODE = 1
+        "//depot/TriggerAction/Hotfix.ts#1 - is opened for add and can't be replaced"
+        '//depot/metadata.json#145 - is opened and not being changed'
+        '... //depot/metadata.json - must resolve #144,#145 before submitting'
+        if ($script:syncCount -eq 1) { "Can't clobber writable file K:\Fixture Project\Table\Buff.xlsx" }
+        else { "Can't clobber writable file K:\Fixture Project\Table\Buff.xlsx" }
+    } elseif ($tail[0] -eq 'resolve' -and $tail[1] -eq '-n') { 'No file(s) to resolve.' }
+}
+$env:SB_P4_REQUEST = @{ port='ssl:fixture:1666'; user='user'; client='fixture'; root='K:\Fixture Project'; force=$false } | ConvertTo-Json
+& ([scriptblock]::Create($env:SB_SCRIPT))
+if ($script:syncCount -ne 2) { throw 'Sync was not verified after the force-sync conflict' }
+if ($script:forceCount -ne 1) { throw 'Missing force-sync attempt' }
+if (-not $script:calls.Contains('resolve -n')) { throw 'Resolve stage did not run after force-sync conflict' }
+if (@($script:calls | Where-Object { $_ -eq 'resolve -am' }).Count -ne 0) { throw 'Unexpected auto-resolve attempt' }
+"#;
+        let result = crate::runner::hidden(
+            Command::new("powershell.exe")
+                .args(["-NoProfile", "-NonInteractive", "-Command", harness])
+                .env("SB_SCRIPT", SYNC_SCRIPT),
+        )
+        .output()
+        .unwrap();
+        assert!(
+            result.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(String::from_utf8_lossy(&result.stdout)
+            .contains("P4 skipped occupied file and continued"));
+    }
+    #[test]
+    fn keeps_real_errors_fatal_alongside_opened_and_occupied_files() {
+        let harness = r#"
+$ErrorActionPreference = 'Stop'
+function p4.exe {
+    $tail = @($args | Select-Object -Skip 6)
+    $global:LASTEXITCODE = 0
+    if ($tail[0] -eq 'clients') { 'Client fixture'; return }
+    if ($tail[0] -eq 'resolve') { $script:resolveCalls++; return }
+    if ($tail[0] -ne 'sync') { return }
+    $global:LASTEXITCODE = 1
+    if ($tail[1] -eq '-f') {
+        $script:forceCalls++
+        'rename: failed to rename K:\Fixture Project\Table\Buff.xlsx after 10 attempts: The process cannot access the file.'
+        if ($script:scenario -eq 'force-denied') { 'Access denied to depot file' }
+        return
+    }
+    $script:syncCalls++
+    "//depot/TriggerAction/Hotfix.ts#1 - is opened for add and can't be replaced"
+    '//depot/metadata.json#145 - is opened and not being changed'
+    '... //depot/metadata.json - must resolve #144,#145 before submitting'
+    "Can't clobber writable file K:\Fixture Project\Table\Buff.xlsx"
+    switch ($script:scenario) {
+        'denied' { 'Access denied to depot file' }
+        'unknown' { '//depot/unknown#1 - unexpected server failure' }
+        'translation' { 'Translation of file content failed near line 1' }
+    }
+}
+$env:SB_P4_REQUEST = @{ port='ssl:fixture:1666'; user='user'; client='fixture'; root='K:\Fixture Project'; force=$false } | ConvertTo-Json
+foreach ($case in @('denied', 'force-denied', 'unknown', 'translation')) {
+    $script:scenario = $case
+    $script:resolveCalls = 0
+    $script:syncCalls = 0
+    $script:forceCalls = 0
+    $failed = $false
+    try { & ([scriptblock]::Create($env:SB_SCRIPT)) } catch { $failed = $true }
+    if (-not $failed) { throw ('Real sync error was ignored: ' + $case) }
+    if ($script:resolveCalls -ne 0) { throw ('Resolve ran after a real sync error: ' + $case) }
+    if ($script:forceCalls -ne 1) { throw 'Missing force-sync attempt' }
+    if ($case -eq 'force-denied' -and $script:syncCalls -ne 1) { throw 'Force-sync errors must stop immediately' }
+}
+"#;
+        let result = crate::runner::hidden(
+            Command::new("powershell.exe")
+                .args(["-NoProfile", "-NonInteractive", "-Command", harness])
+                .env("SB_SCRIPT", SYNC_SCRIPT),
+        )
+        .output()
+        .unwrap();
+        assert!(
+            result.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr)
+        );
+        assert!(String::from_utf8_lossy(&result.stdout).contains("P4 blocking sync error:"));
     }
 }

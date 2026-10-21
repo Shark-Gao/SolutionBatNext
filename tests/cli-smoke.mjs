@@ -5,6 +5,9 @@ import { spawnSync } from 'node:child_process';
 
 const root = path.resolve(import.meta.dirname, '..');
 const exe = process.env.SB_TEST_EXE || path.join(root, 'release', 'MHAutoUpdateCompilerNext.exe');
+const p4Source = await fs.readFile(path.join(root, 'src-tauri', 'src', 'p4.rs'), 'utf8');
+const syncScript = p4Source.match(/pub const SYNC_SCRIPT: &str = r#"([\s\S]*?)"#;/)?.[1];
+assert.ok(syncScript);
 const dataDir = path.join(root, 'test-results', `cli-${Date.now()}`);
 await fs.mkdir(dataDir, { recursive: true });
 const testEnv = { ...process.env, SOLUTIONBAT_DATA_DIR: dataDir, SOLUTIONBAT_DISABLE_TELEMETRY: '1' };
@@ -22,6 +25,7 @@ for (const file of files) {
   for (const id of ['close-rider', 'close-editor', 'p4-sync', 'wait-ubt', 'ue-build', 'ts-definitions', 'ts-build']) {
     assert.ok(result.steps.some(step => step.id === id), `${result.workspaceName}: missing ${id}`);
   }
+  assert.equal(result.steps.find(step => step.id === 'p4-sync').args.at(-1).replace(/\r\n/g, '\n'), syncScript.replace(/\r\n/g, '\n'), 'production EXE must include the current P4 recovery fix');
   const watch = result.steps.find(step => step.id === 'ts-build');
   assert.equal(watch.label, '编译 TS 并启动 Watch（独立窗口）');
   assert.equal(watch.kind, 'detached-watch');
